@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NexusLight - Trợ lý AI thông minh hỗ trợ giải đáp mọi thắc mắc">
+  <title>NexusLight - Trợ lý AI thông minh</title>
+  <style>
+    :root {
+      --primary-color: #3498db;
+      --secondary-color: #2980b9;
+      --accent-color: #e74c3c;
+      --light-bg: #f8f9fa;
+      --dark-text: #2c3e50;
+      --light-text: #7f8c8d;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--dark-text);
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #f5f7fa;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    h1 {
+      color: var(--primary-color);
+      margin-bottom: 10px;
+    }
+    
+    .tagline {
+      color: var(--light-text);
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    
+    .chat-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 25px;
+      margin-bottom: 30px;
+    }
+    
+    textarea {
+      width: 100%;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      resize: vertical;
+      min-height: 120px;
+      transition: border 0.3s;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: background 0.3s;
+      font-weight: bold;
+      width: 100%;
+    }
+    
+    button:hover {
+      background-color: var(--secondary-color);
+    }
+    
+    .response {
+      margin-top: 25px;
+      background: var(--light-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-color);
+      display: none;
+      white-space: pre-wrap;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--light-text);
+      font-size: 14px;
+    }
+    
+    footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+    
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 25px 0;
+    }
+    
+    .feature {
+      flex: 1;
+      min-width: 200px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .feature h3 {
+      color: var(--primary-color);
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🤖 NexusLight AI Assistant</h1>
+    <p class="tagline">Trợ lý thông minh - Giải đáp tức thì - Hỗ trợ 24/7</p>
+  </header>
+
+  <div class="chat-container">
+    <h2>Hỏi đáp cùng NexusLight</h2>
+    <p>Nhập câu hỏi hoặc yêu cầu của bạn vào ô bên dưới:</p>
+    
+    <textarea 
+      id="question" 
+      rows="5" 
+      placeholder="Ví dụ: Giới thiệu về NexusLight? Cách sử dụng NexusLight? NexusLight có những tính năng gì?"
+    ></textarea>
+    
+    <button onclick="askBot()">
+      <span id="button-text">Gửi câu hỏi</span>
+      <span id="button-loading" class="loading" style="display:none;"></span>
+    </button>
+    
+    <div id="answer" class="response"></div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>💡 Kiến thức đa dạng</h3>
+      <p>Hỗ trợ nhiều lĩnh vực từ công nghệ, giáo dục đến giải trí</p>
+    </div>
+    <div class="feature">
+      <h3>⚡ Phản hồi nhanh</h3>
+      <p>Trả lời tức thì với độ chính xác cao</p>
+    </div>
+    <div class="feature">
+      <h3>🔒 Bảo mật tuyệt đối</h3>
+      <p>Không lưu trữ thông tin cá nhân của bạn</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 NexusLight AI. All rights reserved. | 
+      <a href="privacy.html">Chính sách bảo mật</a> | 
+      <a href="terms.html">Điều khoản sử dụng</a>
+    </p>
+  </footer>
+
+  <script>
+    async function askBot() {
+      const message = document.getElementById("question").value.trim();
+      const answerBox = document.getElementById("answer");
+      const buttonText = document.getElementById("button-text");
+      const buttonLoading = document.getElementById("button-loading");
+      
+      if (!message) {
+        answerBox.style.display = "block";
+        answerBox.innerHTML = "⚠️ Vui lòng nhập câu hỏi của bạn";
+        return;
+      }
+      
+      // Hiển thị trạng thái loading
+      buttonText.style.display = "none";
+      buttonLoading.style.display = "inline-block";
+      answerBox.style.display = "block";
+      answerBox.innerHTML = "🔄 NexusLight đang xử lý yêu cầu của bạn...";
+      
+      try {
+        const response = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+
+        if (!response.ok) throw new Error("Network response was not ok");
+        
+        const data = await response.json();
+        answerBox.innerHTML = `
+          <strong>💬 Câu hỏi:</strong> ${message}
+          <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
+          <strong>🤖 NexusLight trả lời:</strong><br><br>
+          ${data.reply || "Xin lỗi, tôi không hiểu câu hỏi này. Vui lòng thử lại với cách diễn đạt khác."}
+        `;
+      } catch (err) {
+        console.error("Error:", err);
+        answerBox.innerHTML = "❌ Đã xảy ra lỗi khi kết nối với NexusLight. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.";
+      } finally {
+        buttonText.style.display = "inline-block";
+        buttonLoading.style.display = "none";
+      }
+    }
+    
+    // Cho phép gửi bằng phím Enter (Shift+Enter để xuống dòng)
+    document.getElementById("question").addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        askBot();
+      }
+    });
+  </script>
+</body>
+</html>

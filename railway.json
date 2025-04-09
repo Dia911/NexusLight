@@ -1,0 +1,17 @@
+{
+    "builds": [
+      {
+        "src": "server.js",
+        "use": "@railway/node"
+      }
+    ],
+    "routes": [
+      {
+        "handle": "filesystem"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/public/$1"
+      }
+    ]
+  }

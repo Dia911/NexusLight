@@ -1,66 +1,125 @@
 import { readFile } from 'fs/promises';
-import { normalizeText } from '../utils/text-matcher.js';
-import path from 'path';
 import { fileURLToPath } from 'url';
+import path from 'path';
+import { 
+  normalizeText,
+  calculateSimilarity,
+  findBestMatch 
+} from '../utils/text-matcher.js';
 
-// Config ES Modules
+// Cấu hình đường dẫn ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Tải dữ liệu FAQ
-const faqData = JSON.parse(
-  await readFile(path.join(__dirname, '../data/faq.json'), 'utf-8')
-);
-
 export default class FAQService {
   constructor() {
-    this.faqIndex = this.buildIndex();
-    this.minMatchScore = 0.7; // Ngưỡng điểm tối thiểu
+    this.faqData = null;
+    this.faqIndex = [];
+    this.minMatchScore = 0.65;
+    this.weights = {
+      question: 0.6,
+      keywords: 0.3,
+      answer: 0.1
+    };
+    this.init();
+  }
+
+  /**
+   * Khởi tạo service
+   */
+  async init() {
+    try {
+      // Load dữ liệu từ file JSON
+      this.faqData = await this.loadFAQData();
+      this.faqIndex = this.buildIndex();
+      console.log(`✅ Đã tải ${this.faqIndex.length} câu hỏi FAQ`);
+    } catch (error) {
+      console.error('❌ Khởi tạo FAQService thất bại:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Tải dữ liệu FAQ từ file
+   */
+  async loadFAQData() {
+    try {
+      const rawData = await readFile(
+        path.join(__dirname, '../config/faq.js'),
+        'utf-8'
+      );
+      // Xử lý file JS module exports
+      return eval(rawData.replace('export default', ''));
+    } catch (error) {
+      console.error('❌ Lỗi đọc file FAQ:', error);
+      return { categories: [] };
+    }
   }
 
   /**
    * Xây dựng chỉ mục tìm kiếm
    */
   buildIndex() {
-    try {
-      return faqData.categories.flatMap(category => 
-        category.questions.map(question => ({
-          ...question,
-          category: category.name,
-          normalizedQuestion: normalizeText(question.question),
-          normalizedAnswer: normalizeText(question.answer),
-          keywords: (question.keywords || []).map(kw => normalizeText(kw))
-        }))
-      );
-    } catch (error) {
-      console.error('❌ Lỗi khi xây dựng chỉ mục FAQ:', error);
-      return [];
-    }
+    return this.faqData.categories.flatMap(category => 
+      category.questions.map(question => ({
+        ...question,
+        categoryId: category.id,
+        categoryTitle: category.title,
+        normalizedQuestion: normalizeText(question.question),
+        normalizedAnswer: normalizeText(question.answer),
+        keywords: (question.keywords || []).map(kw => normalizeText(kw)),
+        isFrequent: question.isFrequent || false
+      }))
+    );
   }
 
   /**
    * Tìm câu trả lời phù hợp nhất
-   * @param {string} userQuery - Câu hỏi từ người dùng
-   * @returns {Promise<FAQResponse>}
    */
   async findAnswer(userQuery) {
     if (!userQuery?.trim()) {
-      return this.getFallbackResponse('Vui lòng nhập câu hỏi');
+      return this.buildResponse(
+        false,
+        null,
+        0,
+        'Vui lòng nhập câu hỏi của bạn'
+      );
     }
 
     const normalizedQuery = normalizeText(userQuery);
+    const { bestMatch, highestScore } = this.findBestMatch(normalizedQuery);
+
+    if (highestScore >= this.minMatchScore) {
+      return this.buildResponse(true, bestMatch, highestScore);
+    }
+
+    return this.buildResponse(
+      false,
+      null,
+      highestScore,
+      'Câu hỏi của bạn chưa có trong hệ thống',
+      this.getSuggestions(normalizedQuery)
+    );
+  }
+
+  /**
+   * Tìm kết quả phù hợp nhất
+   */
+  findBestMatch(query) {
     let bestMatch = null;
     let highestScore = 0;
 
-    // Tìm kiếm tuyến tính (có thể thay bằng thuật toán nâng cao)
     for (const item of this.faqIndex) {
       const scores = {
-        question: this.calculateMatchScore(normalizedQuery, item.normalizedQuestion),
-        keywords: this.calculateKeywordScore(normalizedQuery, item.keywords),
-        answer: this.calculateMatchScore(normalizedQuery, item.normalizedAnswer) * 0.5
+        question: calculateSimilarity(query, item.normalizedQuestion),
+        keywords: this.calculateKeywordScore(query, item.keywords),
+        answer: calculateSimilarity(query, item.normalizedAnswer)
       };
 
-      const totalScore = scores.question * 0.6 + scores.keywords * 0.3 + scores.answer * 0.1;
+      const totalScore = 
+        scores.question * this.weights.question +
+        scores.keywords * this.weights.keywords + 
+        scores.answer * this.weights.answer;
 
       if (totalScore > highestScore) {
         highestScore = totalScore;
@@ -68,25 +127,7 @@ export default class FAQService {
       }
     }
 
-    return {
-      success: highestScore >= this.minMatchScore,
-      data: bestMatch,
-      score: highestScore,
-      ...(highestScore < this.minMatchScore && this.getFallbackResponse(normalizedQuery))
-    };
-  }
-
-  /**
-   * Tính điểm khớp câu hỏi
-   */
-  calculateMatchScore(query, target) {
-    if (!query || !target) return 0;
-    
-    const queryWords = new Set(query.split(/\s+/));
-    const targetWords = new Set(target.split(/\s+/));
-    
-    const intersection = [...queryWords].filter(w => targetWords.has(w)).length;
-    return intersection / Math.max(queryWords.size, 1);
+    return { bestMatch, highestScore };
   }
 
   /**
@@ -98,46 +139,64 @@ export default class FAQService {
   }
 
   /**
-   * Trả về câu trả lời dự phòng
+   * Tạo gợi ý tự động
    */
-  getFallbackResponse(query = '') {
-    // Lấy các câu hỏi thường gặp
+  getSuggestions(query = '') {
+    // Gợi ý từ khóa phù hợp
+    const keywordMatches = this.faqIndex
+      .filter(item => 
+        item.keywords.some(kw => query.includes(kw))
+      )
+      .slice(0, 3);
+
+    // Gợi ý câu hỏi thường gặp
     const frequentQuestions = this.faqIndex
       .filter(item => item.isFrequent)
-      .slice(0, 3)
-      .map(item => item.question);
+      .slice(0, 3);
 
-    // Gợi ý từ khóa nếu có
-    const keywordSuggestions = this.faqIndex
-      .flatMap(item => item.keywords)
-      .filter(kw => query.includes(kw))
-      .slice(0, 2);
+    return keywordMatches.length > 0
+      ? keywordMatches.map(item => item.question)
+      : frequentQuestions.map(item => item.question);
+  }
 
+  /**
+   * Tạo response chuẩn
+   */
+  buildResponse(success, data, score, message = '', suggestions = []) {
     return {
-      message: keywordSuggestions.length > 0
-        ? `Bạn muốn tìm hiểu về "${keywordSuggestions.join(', ')}"?`
-        : 'Câu hỏi thường gặp:',
-      suggestions: keywordSuggestions.length > 0 
-        ? keywordSuggestions 
-        : frequentQuestions
+      success,
+      data,
+      score,
+      message: message || (success ? '' : 'Không tìm thấy câu trả lời'),
+      suggestions: suggestions.length > 0 
+        ? suggestions 
+        : this.getDefaultSuggestions(),
+      timestamp: new Date().toISOString()
     };
   }
+
+  /**
+   * Gợi ý mặc định
+   */
+  getDefaultSuggestions() {
+    return [
+      "Cách trở thành cổ đông?",
+      "Giấy phép kinh doanh?",
+      "Liên hệ hỗ trợ thế nào?"
+    ];
+  }
+
+  /**
+   * Lấy danh sách câu hỏi cho giao diện
+   */
+  getFAQSuggestions(limit = 5) {
+    return this.faqIndex
+      .filter(item => item.isFrequent)
+      .slice(0, limit)
+      .map(item => ({
+        question: item.question,
+        category: item.categoryTitle,
+        keywords: item.keywords
+      }));
+  }
 }
-
-// Type Definitions (cho IDE hỗ trợ)
-/**
- * @typedef {Object} FAQResponse
- * @property {boolean} success - Khớp câu trả lời?
- * @property {FAQItem|null} data - Câu trả lời khớp nhất
- * @property {number} score - Độ khớp (0-1)
- * @property {string} [message] - Tin nhắn gợi ý
- * @property {string[]} [suggestions] - Danh sách gợi ý
- */
-
-/**
- * @typedef {Object} FAQItem
- * @property {string} question - Câu hỏi gốc
- * @property {string} answer - Câu trả lời
- * @property {string} category - Danh mục
- * @property {string[]} keywords - Từ khóa liên quan
- */

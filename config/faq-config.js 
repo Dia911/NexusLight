@@ -1,0 +1,28 @@
+import faqData from './faq.js';
+
+export default {
+  // Lấy tất cả câu hỏi
+  getAllQuestions() {
+    return faqData.categories.flatMap(category => 
+      category.questions.map(q => ({
+        ...q,
+        categoryId: category.id,
+        categoryTitle: category.title
+      }))
+    );
+  },
+
+  // Lấy thông tin liên hệ
+  getContactInfo() {
+    return faqData.metadata.contact;
+  },
+
+  // Tìm câu hỏi theo ID
+  findQuestionById(id) {
+    for (const category of faqData.categories) {
+      const question = category.questions.find(q => q.id === id);
+      if (question) return { ...question, category };
+    }
+    return null;
+  }
+};

@@ -32,4 +32,5 @@ npm install
 │   └── logger.js                # Ghi log có màu & lưu file
 ├── package.json
 └── README.md
-đọc kỹ chính sách và quyền riêng tư 
+đọc kỹ chính sách và quyền riêng tư ,  hãy liên hệ với sđt và email được ghi trong Điền Khoản (Terms)
+bản cập nhật mới nhất sẽ được update theo quy trình 

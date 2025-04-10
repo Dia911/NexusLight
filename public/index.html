@@ -157,11 +157,20 @@
     .faq-item h3 {
       color: var(--primary-color);
       margin-bottom: 10px;
+      cursor: pointer;
     }
 
     .faq-item p {
       white-space: pre-line;
       margin: 0;
+      display: none;
+      padding: 10px;
+      background: var(--light-bg);
+      border-radius: 5px;
+    }
+
+    .faq-item.active p {
+      display: block;
     }
 
     .faq-suggestions h3 {
@@ -216,6 +225,17 @@
       height: 40px;
       margin-bottom: 10px;
     }
+
+    .error-message {
+      color: var(--accent-color);
+      font-weight: bold;
+    }
+
+    .loading-text {
+      text-align: center;
+      padding: 20px;
+      color: var(--light-text);
+    }
   </style>
 </head>
 <body>
@@ -233,12 +253,17 @@
       <span id="button-loading" class="loading" style="display:none;"></span>
     </button>
     <div id="answer" class="response"></div>
-    <div id="faq-suggestions-container" class="faq-suggestions"></div>
+    <div id="faq-suggestions-container" class="faq-suggestions" style="display:none;">
+      <h3>Bạn có thể quan tâm:</h3>
+      <ul id="faq-suggestions-list"></ul>
+    </div>
   </div>
 
   <div class="faq-section">
     <h2>📚 Câu hỏi thường gặp</h2>
-    <div id="faq-list"></div>
+    <div id="faq-list">
+      <div class="loading-text">Đang tải câu hỏi...</div>
+    </div>
   </div>
 
   <div class="platform-connections">
@@ -283,7 +308,8 @@
     </p>
   </footer>
 
-  <script type="module">
+  <script>
+    // Utility functions
     const escapeHtml = (unsafe) => {
       return unsafe
         .replace(/&/g, "&amp;")
@@ -293,12 +319,91 @@
         .replace(/'/g, "&#039;");
     };
 
+    // DOM Elements
     const questionInput = document.getElementById('question');
     const answerBox = document.getElementById('answer');
     const askButton = document.getElementById('ask-button');
     const buttonText = document.getElementById('button-text');
     const buttonLoading = document.getElementById('button-loading');
+    const faqListContainer = document.getElementById('faq-list');
+    const faqSuggestionsContainer = document.getElementById('faq-suggestions-container');
+    const faqSuggestionsList = document.getElementById('faq-suggestions-list');
 
+    // Load FAQ data when page loads
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        // Load full FAQ list
+        const faqResponse = await fetch('/api/faq');
+        if (!faqResponse.ok) throw new Error('Failed to load FAQ');
+        const faqData = await faqResponse.json();
+        
+        renderFAQList(faqData);
+        
+        // Load random FAQ suggestions
+        const suggestionsResponse = await fetch('/api/faq/suggestions');
+        if (!suggestionsResponse.ok) throw new Error('Failed to load suggestions');
+        const suggestionsData = await suggestionsResponse.json();
+        
+        renderFAQSuggestions(suggestionsData.data);
+      } catch (error) {
+        console.error('Error loading FAQ:', error);
+        faqListContainer.innerHTML = `<div class="error-message">Không thể tải danh sách câu hỏi. Vui lòng tải lại trang.</div>`;
+      }
+    });
+
+    // Render full FAQ list
+    function renderFAQList(faqData) {
+      if (!faqData || faqData.length === 0) {
+        faqListContainer.innerHTML = '<div>Hiện chưa có câu hỏi nào</div>';
+        return;
+      }
+      
+      faqListContainer.innerHTML = faqData.map(item => `
+        <div class="faq-item">
+          <h3 onclick="toggleFAQAnswer(this)">${escapeHtml(item.question)}</h3>
+          <p>${escapeHtml(item.answer)}</p>
+        </div>
+      `).join('');
+    }
+
+    // Render FAQ suggestions
+    function renderFAQSuggestions(suggestions) {
+      if (!suggestions || suggestions.length === 0) {
+        faqSuggestionsContainer.style.display = 'none';
+        return;
+      }
+      
+      faqSuggestionsList.innerHTML = suggestions.map(item => `
+        <li onclick="fillQuestion('${escapeHtml(item.question)}')">${escapeHtml(item.question)}</li>
+      `).join('');
+      
+      faqSuggestionsContainer.style.display = 'block';
+    }
+
+    // Toggle FAQ answer visibility
+    window.toggleFAQAnswer = (element) => {
+      const faqItem = element.parentElement;
+      faqItem.classList.toggle('active');
+    };
+
+    // Fill question from suggestion
+    window.fillQuestion = (question) => {
+      questionInput.value = question;
+      questionInput.focus();
+    };
+
+    // Connect to social platform
+    window.connectPlatform = (platform) => {
+      const urls = {
+        facebook: 'https://facebook.com/',
+        zalo: 'https://zalo.me/',
+        telegram: 'https://t.me/',
+        tiktok: 'https://tiktok.com/'
+      };
+      window.open(urls[platform], '_blank');
+    };
+
+    // Handle ask button click
     askButton.addEventListener('click', async () => {
       const question = questionInput.value.trim();
       if (!question) return;
@@ -309,15 +414,28 @@
       buttonLoading.style.display = 'inline-block';
 
       try {
-        const response = await fetch('https://api.example.com/ask', {
+        const response = await fetch('/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question })
         });
+        
+        if (!response.ok) throw new Error('API request failed');
+        
         const data = await response.json();
-        answerBox.innerHTML = escapeHtml(data.answer);
+        answerBox.innerHTML = escapeHtml(data.reply);
         answerBox.style.display = 'block';
+        
+        // Show suggestions if no direct answer found
+        if (data.source === 'ai') {
+          const suggestionsResponse = await fetch('/api/faq/suggestions');
+          if (suggestionsResponse.ok) {
+            const suggestionsData = await suggestionsResponse.json();
+            renderFAQSuggestions(suggestionsData.data);
+          }
+        }
       } catch (err) {
+        console.error('Error:', err);
         answerBox.innerHTML = '<span class="error-message">Đã xảy ra lỗi. Vui lòng thử lại sau.</span>';
         answerBox.style.display = 'block';
       } finally {
@@ -326,15 +444,13 @@
       }
     });
 
-    function connectPlatform(platform) {
-      const urls = {
-        facebook: 'https://facebook.com/',
-        zalo: 'https://zalo.me/',
-        telegram: 'https://t.me/',
-        tiktok: 'https://tiktok.com/'
-      };
-      window.open(urls[platform], '_blank');
-    }
+    // Allow pressing Enter to submit (Shift+Enter for new line)
+    questionInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        askButton.click();
+      }
+    });
   </script>
 </body>
 </html>

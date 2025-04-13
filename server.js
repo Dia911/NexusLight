@@ -4,7 +4,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
+import { google } from 'googleapis';
 import faqModule from './config/faq.js';
+import logger from './utils/logger.js';
 
 // ==============================================
 // 1. Cấu hình cơ bản
@@ -23,8 +25,8 @@ const app = express();
 // ==============================================
 app.use(cors({
   origin: isProduction ? process.env.CORS_ORIGIN : '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Platform']
 }));
 
 app.use(express.json({ limit: '10kb' }));
@@ -36,131 +38,101 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Platform', req.headers['x-platform'] || 'default');
   next();
 });
 
 // ==============================================
-// 4. Static Files Configuration
+// 4. Cấu hình file tĩnh
 // ==============================================
 const staticDir = path.join(__dirname, 'public');
-
-if (!fs.existsSync(staticDir)) {
-  console.error('❌ Thư mục public không tồn tại!');
-  process.exit(1);
-}
+const ensureStaticDir = () => {
+  if (!fs.existsSync(staticDir)) {
+    logger.error('Thư mục public không tồn tại', { dir: staticDir });
+    process.exit(1);
+  }
+};
+ensureStaticDir();
 
 app.use(express.static(staticDir, {
-  extensions: ['html'],
-  index: 'index.html',
-  maxAge: isProduction ? '7d' : '0',
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html') && !isProduction) {
-      res.setHeader('Cache-Control', 'no-store, max-age=0');
-    }
+  setHeaders: (res, path) => {
+    const cacheControl = isProduction && !path.endsWith('.html') 
+      ? 'public, max-age=31536000' 
+      : 'no-store, no-cache';
+    res.setHeader('Cache-Control', cacheControl);
   }
 }));
 
 // ==============================================
-// 5. Routes
+// 5. Khởi tạo Google Sheets API
 // ==============================================
-// Health check endpoint
+const auth = new google.auth.GoogleAuth({
+  keyFile: 'service-account.json',
+  scopes: ['https://www.googleapis.com/auth/spreadsheets']
+});
+const sheets = google.sheets({ version: 'v4', auth });
+
+// ==============================================
+// 6. Routes API
+// ==============================================
+// Health Check
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
+  res.json({
+    status: 'ok',
     version: faqModule.metadata.version,
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    sheetId: process.env.GOOGLE_SHEET_ID,
+    platform: res.getHeader('X-Platform')
   });
 });
 
-// FAQ API Endpoints
-app.get('/api/faqs/categories', async (req, res) => {
+// FAQ API
+app.get('/api/faqs/:type(categories|questions|search)', async (req, res) => {
   try {
-    const categories = faqModule.getCategories();
-    res.json({
+    const platform = res.getHeader('X-Platform');
+    let data;
+
+    switch(req.params.type) {
+      case 'categories':
+        data = faqModule.getCategories(platform);
+        break;
+      
+      case 'questions':
+        data = faqModule.getQuestions(
+          req.query.categoryId,
+          platform,
+          parseInt(req.query.skip) || 0,
+          parseInt(req.query.limit) || 50
+        );
+        break;
+      
+      case 'search':
+        if (!req.query.q || req.query.q.length < 3) {
+          return res.status(400).json({ error: 'Yêu cầu từ khóa tìm kiếm tối thiểu 3 ký tự' });
+        }
+        data = faqModule.search(req.query.q, platform);
+        break;
+    }
+
+    res.json({ 
       success: true,
-      data: categories,
+      data,
       metadata: faqModule.metadata
     });
+
   } catch (error) {
-    res.status(500).json({
+    logger.error('FAQ API Error', error);
+    res.status(500).json({ 
       success: false,
-      error: 'Lỗi tải danh mục FAQ'
+      error: error.message
     });
   }
 });
 
-app.get('/api/faqs/questions/:categoryId', async (req, res) => {
+// Chat Processing
+app.post('/api/chat', async (req, res) => {
   try {
-    const { categoryId } = req.params;
-    const questions = faqModule.getQuestions(categoryId, {
-      skip: parseInt(req.query.skip) || 0,
-      limit: parseInt(req.query.limit) || 50
-    });
-    
-    if (questions.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Không tìm thấy danh mục'
-      });
-    }
-
-    res.json({ success: true, data: questions });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi tải câu hỏi'
-    });
-  }
-});
-
-app.get('/api/faqs/search', async (req, res) => {
-  try {
-    const query = req.query.q;
-    if (!query || query.length < 3) {
-      return res.status(400).json({
-        success: false,
-        error: 'Yêu cầu từ khóa tìm kiếm tối thiểu 3 ký tự'
-      });
-    }
-
-    const results = faqModule.search(query, {
-      threshold: 0.3,
-      limit: 10,
-      searchFields: ['question', 'answer', 'keywords']
-    });
-
-    res.json({ success: true, data: results });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi tìm kiếm'
-    });
-  }
-});
-
-app.get('/api/faqs/:id', async (req, res) => {
-  try {
-    const question = faqModule.getQuestionDetail(req.params.id);
-    if (!question) {
-      return res.status(404).json({
-        success: false,
-        error: 'Không tìm thấy câu hỏi'
-      });
-    }
-    res.json({ success: true, data: question });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi tải chi tiết câu hỏi'
-    });
-  }
-});
-
-// Existing Ask Endpoint
-app.post('/ask', (req, res) => {
-  try {
-    const { message } = req.body;
+    const { message, platform = 'default' } = req.body;
     
     if (!message?.trim()) {
       return res.status(400).json({ 
@@ -169,76 +141,150 @@ app.post('/ask', (req, res) => {
       });
     }
 
-    // Integration with FAQ system
-    const faqResults = faqModule.search(message, {
-      threshold: 0.5,
-      limit: 1
-    });
+    // Xử lý tin nhắn và phân tích
+    const startTime = Date.now();
+    const response = await processMessage(message, platform);
+    const processingTime = Date.now() - startTime;
 
-    const response = faqResults.length > 0 
-      ? { 
-          reply: faqResults[0].answerPreview,
-          source: 'faq',
-          reference: faqResults[0].id
-        }
-      : {
-          reply: `Received: ${message}`,
-          source: 'ai'
-        };
+    // Log analytics
+    logInteraction({
+      type: 'chat_message',
+      platform,
+      message,
+      responseType: response.type,
+      processingTime,
+      sentiment: analyzeSentiment(message)
+    });
 
     res.json(response);
 
   } catch (error) {
-    console.error('API Error:', error);
-    res.status(500).json({ 
+    logger.error('Chat Processing Error', error);
+    res.status(500).json({
       error: 'Internal Server Error',
-      details: isProduction ? undefined : error.message
+      details: isProduction ? undefined : error.stack
+    });
+  }
+});
+
+// Analytics Logging
+app.post('/api/analytics', async (req, res) => {
+  try {
+    const result = await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: 'Analytics!A:Z',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [Object.values(req.body)]
+      }
+    });
+
+    res.json({ 
+      success: true,
+      updatedCells: result.data.updates.updatedCells
+    });
+
+  } catch (error) {
+    logger.error('Google Sheets Error', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to log analytics'
     });
   }
 });
 
 // ==============================================
-// 6. Error Handling
+// 7. Business Logic
+// ==============================================
+async function processMessage(message, platform) {
+  // 1. Check FAQ first
+  const faqResults = faqModule.search(message, platform);
+  if (faqResults.length > 0) {
+    return {
+      type: 'faq_answer',
+      data: faqResults[0],
+      suggested: getRelatedQuestions(faqResults[0].related)
+    };
+  }
+
+  // 2. Xử lý AI
+  return {
+    type: 'ai_response',
+    data: await generateAIResponse(message),
+    quickReplies: getQuickReplies(platform)
+  };
+}
+
+function logInteraction(data) {
+  // Thêm metadata
+  const fullData = {
+    timestamp: new Date().toISOString(),
+    sessionId: req.sessionID,
+    ...data
+  };
+
+  // Gửi đến Google Sheets và logger
+  logger.info('Interaction Logged', fullData);
+  fetch('/api/analytics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fullData)
+  });
+}
+
+// ==============================================
+// 8. Error Handling
 // ==============================================
 app.use((req, res) => {
   res.status(404).sendFile(path.join(staticDir, '404.html'));
 });
 
 app.use((err, req, res, next) => {
-  console.error('🔥 Server Error:', err.stack);
-  res.status(500).sendFile(path.join(staticDir, '500.html'));
+  logger.error('Server Error', {
+    error: err.stack,
+    url: req.originalUrl,
+    headers: req.headers
+  });
+
+  res.status(500).format({
+    json: () => res.json({
+      error: 'Internal Server Error',
+      requestId: req.id
+    }),
+    html: () => res.sendFile(path.join(staticDir, '500.html')),
+    default: () => res.type('txt').send('Internal Server Error')
+  });
 });
 
 // ==============================================
-// 7. Khởi động Server
+// 9. Khởi động Server
 // ==============================================
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`
-  🚀 Server đã khởi động
-  ⚙️ Chế độ: ${isProduction ? 'Production' : 'Development'}
-  🌐 Địa chỉ: http://${HOST}:${PORT}
-  📂 FAQ Version: ${faqModule.metadata.version}
-  ⏰ Thời gian: ${new Date().toLocaleString()}
-  `);
+  logger.info(`Server khởi động thành công`, {
+    port: PORT,
+    mode: process.env.NODE_ENV,
+    sheetId: process.env.GOOGLE_SHEET_ID
+  });
 });
 
 // ==============================================
-// 8. Graceful Shutdown
+// 10. Graceful Shutdown
 // ==============================================
-const shutdown = (signal) => {
-  console.log(`\n🛑 Nhận tín hiệu ${signal}, đang tắt server...`);
-  server.close(() => {
-    console.log('✅ Server đã tắt an toàn');
+const shutdown = async (signal) => {
+  logger.warn(`Nhận tín hiệu ${signal}, bắt đầu tắt server`);
+  
+  try {
+    await new Promise((resolve) => server.close(resolve));
+    await auth.cleanup();
+    logger.info('Server đã tắt an toàn');
     process.exit(0);
-  });
-
-  setTimeout(() => {
-    console.error('❌ Buộc tắt server do timeout');
+  } catch (err) {
+    logger.error('Lỗi khi tắt server', err);
     process.exit(1);
-  }, 5000);
+  }
 };
 
 process.on('SIGINT', () => shutdown('SIGINT'));

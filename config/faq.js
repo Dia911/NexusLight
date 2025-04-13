@@ -1,202 +1,188 @@
 // config/faq.js
-const faqData = {
-  categories: [
+export const faqModule = {
+  metadata: {
+    version: "2.3.0",
+    lastUpdated: "2024-04-15",
+    totalQuestions: 0, // Sẽ được tính tự động
+  },
+
+  // ================= CORE DATA =================
+  config: {
+    brand: {
+      name: "OpenLive/Monbase",
+      defaultGreeting: "Chào anh/chị, em là NexusOne - trợ lý của {brand}. Rất vui được hỗ trợ anh/chị!"
+    },
+    
+    platforms: {
+      facebook: "https://www.facebook.com/profile.php?id=61573597316758",
+      zalo: "https://zalo.me/g/knzata264",
+      registration: "https://bcc.monbase.com/sign-up?ref=4b396e3c20b39ee0728ca6ed101e9498",
+      phone: "0913831686"
+    },
+
+    aiIntegration: {
+      chatGPT: {
+        promptURL: "https://chat.openai.com/?prompt={userQuestion}",
+        fallbackMessage: "Hiện không kết nối được với AI, vui lòng thử lại sau!"
+      }
+    }
+  },
+
+  // ================= FAQ STRUCTURE =================
+  structure: [
     {
       id: "general",
       title: "🔍 Tìm hiểu về OpenLive",
       questions: [
         {
-          id: "what-is-openlive",
+          id: "about-openlive",
           question: "OpenLive là gì?",
-          answer: "OpenLive Group là một tập đoàn công nghệ tiên phong...",
-          keywords: ["giới thiệu", "tổng quan", "công ty"],
-          related: ["business-license", "sub-companies"],
-          lastUpdated: "2024-06-20"
-        },
-        {
-          id: "business-license",
-          question: "Giấy phép Đăng Ký Kinh Doanh của OpenLive tại Việt Nam?",
-          answer: "OpenLive có đầy đủ giấy tờ pháp lý...",
-          keywords: ["pháp lý", "giấy phép"],
-          related: ["what-is-openlive"],
-          lastUpdated: "2024-06-20"
-        },
-        {
-          id: "sub-companies",
-          question: "OpenLive có những công ty thành viên nào?",
-          answer: "Hệ sinh thái OpenLive gồm 5 công ty chính...",
-          keywords: ["công ty con", "hệ sinh thái"],
-          related: ["what-is-openlive"],
-          lastUpdated: "2024-06-20"
+          answer: "OpenLive Group là tập đoàn công nghệ tiên phong...",
+          keywords: ["giới thiệu", "tổng quan"],
+          related: ["products", "investment"],
+          popularity: 0
         }
       ]
     },
-    // ... (other categories remain similar with added metadata)
+    {
+      id: "products",
+      title: "🏀 Sản phẩm & Dịch vụ",
+      questions: [
+        {
+          id: "main-products",
+          question: "OpenLive có những sản phẩm chính nào?",
+          answer: "Các sản phẩm chủ lực của chúng tôi bao gồm...",
+          keywords: ["dịch vụ", "offerings"],
+          related: ["investment-process"],
+          popularity: 0
+        }
+      ]
+    },
+    {
+      id: "investment",
+      title: "💰 Đầu tư với OpenLive",
+      questions: [
+        {
+          id: "investment-process",
+          question: "Quy trình đầu tư như thế nào?",
+          answer: "3 bước đơn giản để bắt đầu đầu tư...",
+          keywords: ["cách đầu tư", "lợi nhuận"],
+          related: ["main-products"],
+          popularity: 0
+        }
+      ]
+    }
   ],
-  metadata: {
-    lastUpdated: new Date().toISOString(),
-    version: "2.0.0",
-    systemInfo: {
-      schemaVersion: 2,
-      maxQuestions: 1000
-    }
-  }
-};
 
-// ================= UTILITY FUNCTIONS =================
-const findQuestion = (id) => {
-  for (const category of faqData.categories) {
-    const question = category.questions.find(q => q.id === id);
-    if (question) return { category, question };
-  }
-  return null;
-};
-
-// ================= CORE API =================
-export const getCategories = () => {
-  return faqData.categories.map(c => ({
-    id: c.id,
-    title: c.title,
-    questionCount: c.questions.length
-  }));
-};
-
-export const getQuestions = (categoryId, options = {}) => {
-  const { skip = 0, limit = 50 } = options;
-  const category = faqData.categories.find(c => c.id === categoryId);
-  if (!category) return [];
-  
-  return category.questions
-    .slice(skip, skip + limit)
-    .map(q => ({
-      id: q.id,
-      question: q.question,
-      lastUpdated: q.lastUpdated
+  // ================= CORE METHODS =================
+  getCategories(platform = 'default') {
+    this._updateMetadata();
+    return this.structure.map(category => ({
+      id: category.id,
+      title: category.title,
+      questionCount: category.questions.length,
+      platformFilter: platform
     }));
-};
+  },
 
-export const getQuestionDetail = (id) => {
-  const result = findQuestion(id);
-  if (!result) return null;
-  
-  return {
-    ...result.question,
-    category: {
-      id: result.category.id,
-      title: result.category.title
-    }
-  };
-};
+  getQuestions(categoryId, platform = 'default', skip = 0, limit = 50) {
+    const category = this.structure.find(c => c.id === categoryId);
+    if (!category) throw new Error("Category not found");
+    
+    return category.questions
+      .slice(skip, skip + limit)
+      .map(q => ({
+        ...q,
+        _links: this._generateLinks(q.id, platform)
+      }));
+  },
 
-// ================= SEARCH =================
-export const search = (query, options = {}) => {
-  const {
-    threshold = 0.2,
-    limit = 5,
-    searchFields = ['question', 'answer', 'keywords']
-  } = options;
+  search(query, platform = 'default', options = {}) {
+    const {
+      threshold = 0.25,
+      limit = 5,
+      searchFields = ['question', 'answer', 'keywords']
+    } = options;
 
-  const lowerQuery = query.toLowerCase();
-  const results = [];
+    const results = [];
+    const cleanQuery = query.toLowerCase().trim();
 
-  faqData.categories.forEach(category => {
-    category.questions.forEach(question => {
-      let score = 0;
-      
-      if (searchFields.includes('question') && 
-          question.question.toLowerCase().includes(lowerQuery)) {
-        score += 0.5;
-      }
-      
-      if (searchFields.includes('answer') && 
-          question.answer.toLowerCase().includes(lowerQuery)) {
-        score += 0.3;
-      }
-      
-      if (searchFields.includes('keywords') && 
-          question.keywords?.some(kw => kw.toLowerCase().includes(lowerQuery))) {
-        score += 0.2;
-      }
+    this.structure.forEach(category => {
+      category.questions.forEach(question => {
+        let score = 0;
+        
+        if (searchFields.includes('question') && 
+            question.question.toLowerCase().includes(cleanQuery)) {
+          score += 0.4;
+        }
+        
+        if (searchFields.includes('answer') && 
+            question.answer.toLowerCase().includes(cleanQuery)) {
+          score += 0.3;
+        }
+        
+        if (searchFields.includes('keywords') && 
+            question.keywords.some(kw => kw.toLowerCase() === cleanQuery)) {
+          score += 0.3;
+        }
 
-      if (score >= threshold) {
-        results.push({
-          id: question.id,
-          question: question.question,
-          category: category.title,
-          score,
-          answerPreview: question.answer.substring(0, 100) + '...'
-        });
-      }
+        if (score >= threshold) {
+          results.push({
+            ...question,
+            score,
+            category: category.title,
+            _links: this._generateLinks(question.id, platform)
+          });
+        }
+      });
     });
-  });
 
-  return results
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    return results
+      .sort((a, b) => b.score - a.score || b.popularity - a.popularity)
+      .slice(0, limit);
+  },
+
+  getQuestionDetail(questionId, platform = 'default') {
+    for (const category of this.structure) {
+      const question = category.questions.find(q => q.id === questionId);
+      if (question) {
+        question.popularity++; // Update popularity
+        return {
+          ...question,
+          category: {
+            id: category.id,
+            title: category.title
+          },
+          _links: this._generateLinks(questionId, platform)
+        };
+      }
+    }
+    throw new Error("Question not found");
+  },
+
+  // ================= PRIVATE METHODS =================
+  _updateMetadata() {
+    this.metadata.totalQuestions = this.structure.reduce(
+      (acc, curr) => acc + curr.questions.length, 0
+    );
+    this.metadata.lastUpdated = new Date().toISOString();
+  },
+
+  _generateLinks(questionId, platform) {
+    return {
+      self: `${this.config.platforms[platform]}/faq/${questionId}`,
+      related: this.config.platforms[platform] + '/faq/related/' + questionId
+    };
+  },
+
+  // ================= ANALYTICS INTEGRATION =================
+  analytics: {
+    googleSheetID: "YOUR_SHEET_ID",
+    trackInteraction(interactionData) {
+      // Implementation for Google Sheets integration
+    }
+  }
 };
 
-// ================= ADMIN FUNCTIONS =================
-export const addQuestion = (categoryId, newQuestion) => {
-  const category = faqData.categories.find(c => c.id === categoryId);
-  if (!category) return { error: "Category not found" };
-
-  const id = `${categoryId}-${Date.now()}`;
-  const question = {
-    id,
-    ...newQuestion,
-    lastUpdated: new Date().toISOString(),
-    keywords: newQuestion.keywords || [],
-    related: newQuestion.related || []
-  };
-
-  category.questions.push(question);
-  updateMetadata();
-  
-  return { id, ...question };
-};
-
-export const updateQuestion = (id, updates) => {
-  const result = findQuestion(id);
-  if (!result) return { error: "Question not found" };
-
-  Object.assign(result.question, {
-    ...updates,
-    lastUpdated: new Date().toISOString()
-  });
-  updateMetadata();
-  
-  return getQuestionDetail(id);
-};
-
-const updateMetadata = () => {
-  faqData.metadata = {
-    ...faqData.metadata,
-    lastUpdated: new Date().toISOString(),
-    version: incrementVersion(faqData.metadata.version)
-  };
-};
-
-const incrementVersion = (version) => {
-  const [major, minor, patch] = version.split('.').map(Number);
-  return `${major}.${minor}.${patch + 1}`;
-};
-
-// ================= EXPORT =================
-export default {
-  // Data
-  data: faqData,
-  metadata: faqData.metadata,
-  
-  // Core functions
-  getCategories,
-  getQuestions,
-  getQuestionDetail,
-  search,
-  
-  // Admin functions
-  addQuestion,
-  updateQuestion,
-  
-  // Utility
-  findQuestion
-};
+// Khởi tạo metadata ban đầu
+faqModule._updateMetadata();

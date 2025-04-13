@@ -333,7 +333,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         // Load full FAQ list
-        const faqResponse = await fetch('/api/faq');
+        const faqResponse = await fetch('/api/faqs');
         if (!faqResponse.ok) throw new Error('Failed to load FAQ');
         const faqData = await faqResponse.json();
         

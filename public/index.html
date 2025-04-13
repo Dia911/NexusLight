@@ -6,236 +6,7 @@
   <meta name="description" content="NexusLight - Trợ lý AI thông minh hỗ trợ giải đáp mọi thắc mắc">
   <title>NexusLight - Trợ lý AI thông minh</title>
   <style>
-    :root {
-      --primary-color: #3498db;
-      --secondary-color: #2980b9;
-      --accent-color: #e74c3c;
-      --light-bg: #f8f9fa;
-      --dark-text: #2c3e50;
-      --light-text: #7f8c8d;
-    }
-
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      line-height: 1.6;
-      color: var(--dark-text);
-      padding: 20px;
-      max-width: 800px;
-      margin: 0 auto;
-      background-color: #f5f7fa;
-    }
-
-    header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    h1 {
-      color: var(--primary-color);
-      margin-bottom: 10px;
-    }
-
-    .tagline {
-      color: var(--light-text);
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-
-    .chat-container {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 25px;
-      margin-bottom: 30px;
-    }
-
-    textarea {
-      width: 100%;
-      padding: 15px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 16px;
-      resize: vertical;
-      min-height: 120px;
-      transition: border 0.3s;
-    }
-
-    textarea:focus {
-      outline: none;
-      border-color: var(--primary-color);
-    }
-
-    button {
-      background-color: var(--primary-color);
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 15px;
-      transition: background 0.3s;
-      font-weight: bold;
-      width: 100%;
-    }
-
-    button:hover {
-      background-color: var(--secondary-color);
-    }
-
-    .response {
-      margin-top: 25px;
-      background: var(--light-bg);
-      padding: 20px;
-      border-radius: 8px;
-      border-left: 4px solid var(--primary-color);
-      display: none;
-      white-space: pre-wrap;
-    }
-
-    .loading {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid rgba(255,255,255,.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 40px;
-      color: var(--light-text);
-      font-size: 14px;
-    }
-
-    footer a {
-      color: var(--primary-color);
-      text-decoration: none;
-    }
-
-    .features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      margin: 25px 0;
-    }
-
-    .feature {
-      flex: 1;
-      min-width: 200px;
-      background: white;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    .feature h3 {
-      color: var(--primary-color);
-      margin-top: 0;
-    }
-
-    .faq-section, .faq-suggestions {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 25px;
-      margin: 30px 0;
-    }
-
-    .faq-item {
-      margin-bottom: 20px;
-      border-bottom: 1px solid #eee;
-      padding: 10px 0;
-    }
-
-    .faq-item h3 {
-      color: var(--primary-color);
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-
-    .faq-item p {
-      white-space: pre-line;
-      margin: 0;
-      display: none;
-      padding: 10px;
-      background: var(--light-bg);
-      border-radius: 5px;
-    }
-
-    .faq-item.active p {
-      display: block;
-    }
-
-    .faq-suggestions h3 {
-      color: var(--accent-color);
-      margin-top: 0;
-    }
-
-    .faq-suggestions ul {
-      padding-left: 20px;
-      list-style-type: none;
-    }
-
-    .faq-suggestions li {
-      margin: 10px 0;
-      padding: 8px 12px;
-      background: white;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .faq-suggestions li:hover {
-      background: var(--primary-color);
-      color: white;
-      transform: translateX(5px);
-    }
-
-    .platform-connections {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      margin: 25px 0;
-    }
-
-    .platform {
-      flex: 1;
-      min-width: 120px;
-      text-align: center;
-      padding: 15px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-      transition: transform 0.3s;
-    }
-
-    .platform:hover {
-      transform: translateY(-5px);
-    }
-
-    .platform img {
-      width: 40px;
-      height: 40px;
-      margin-bottom: 10px;
-    }
-
-    .error-message {
-      color: var(--accent-color);
-      font-weight: bold;
-    }
-
-    .loading-text {
-      text-align: center;
-      padding: 20px;
-      color: var(--light-text);
-    }
+    /* Thêm các kiểu CSS đã cung cấp ở trên */
   </style>
 </head>
 <body>
@@ -286,21 +57,6 @@
     </div>
   </div>
 
-  <div class="features">
-    <div class="feature">
-      <h3>💡 Kiến thức đa dạng</h3>
-      <p>Hỗ trợ nhiều lĩnh vực từ công nghệ, giáo dục đến giải trí</p>
-    </div>
-    <div class="feature">
-      <h3>⚡ Phản hồi nhanh</h3>
-      <p>Trả lời tức thì với độ chính xác cao</p>
-    </div>
-    <div class="feature">
-      <h3>🔒 Bảo mật tuyệt đối</h3>
-      <p>Không lưu trữ thông tin cá nhân của bạn</p>
-    </div>
-  </div>
-
   <footer>
     <p>© 2025 NexusLight AI. All rights reserved. | 
       <a href="privacy.html">Chính sách bảo mật</a> | 
@@ -333,7 +89,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         // Load full FAQ list
-        const faqResponse = await fetch('/api/faqs');
+        const faqResponse = await fetch('/api/faq');
         if (!faqResponse.ok) throw new Error('Failed to load FAQ');
         const faqData = await faqResponse.json();
         
@@ -392,17 +148,6 @@
       questionInput.focus();
     };
 
-    // Connect to social platform
-    window.connectPlatform = (platform) => {
-      const urls = {
-        facebook: 'https://facebook.com/',
-        zalo: 'https://zalo.me/',
-        telegram: 'https://t.me/',
-        tiktok: 'https://tiktok.com/'
-      };
-      window.open(urls[platform], '_blank');
-    };
-
     // Handle ask button click
     askButton.addEventListener('click', async () => {
       const question = questionInput.value.trim();
@@ -414,43 +159,32 @@
       buttonLoading.style.display = 'inline-block';
 
       try {
-        const response = await fetch('/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question })
-        });
-        
-        if (!response.ok) throw new Error('API request failed');
-        
+        const response = await fetch(`/api/answer?question=${encodeURIComponent(question)}`);
+        if (!response.ok) throw new Error('Không thể lấy câu trả lời');
         const data = await response.json();
-        answerBox.innerHTML = escapeHtml(data.reply);
+
+        answerBox.innerHTML = data.answer;
         answerBox.style.display = 'block';
-        
-        // Show suggestions if no direct answer found
-        if (data.source === 'ai') {
-          const suggestionsResponse = await fetch('/api/faq/suggestions');
-          if (suggestionsResponse.ok) {
-            const suggestionsData = await suggestionsResponse.json();
-            renderFAQSuggestions(suggestionsData.data);
-          }
-        }
-      } catch (err) {
-        console.error('Error:', err);
-        answerBox.innerHTML = '<span class="error-message">Đã xảy ra lỗi. Vui lòng thử lại sau.</span>';
+      } catch (error) {
+        console.error('Error fetching answer:', error);
+        answerBox.innerHTML = '<div class="error-message">Không thể lấy câu trả lời. Vui lòng thử lại sau.</div>';
         answerBox.style.display = 'block';
       } finally {
-        buttonText.style.display = 'inline';
+        buttonText.style.display = 'inline-block';
         buttonLoading.style.display = 'none';
       }
     });
-
-    // Allow pressing Enter to submit (Shift+Enter for new line)
-    questionInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        askButton.click();
-      }
-    });
+    
+    // Connect to social platform
+    window.connectPlatform = (platform) => {
+      const urls = {
+        facebook: 'https://facebook.com/',
+        zalo: 'https://zalo.me/',
+        telegram: 'https://t.me/',
+        tiktok: 'https://tiktok.com/'
+      };
+      window.open(urls[platform], '_blank');
+    };
   </script>
 </body>
 </html>

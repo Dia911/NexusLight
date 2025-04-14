@@ -503,3 +503,32 @@
   </script>
 </body>
 </html>
+<!-- Thêm vào phần chat container -->
+<div class="chat-wrapper">
+  <div class="chat-header">
+    <div class="faq-quick-access">
+      <button class="faq-toggle" onclick="toggleFAQ()">
+        <img src="/image/faq-icon.png" alt="FAQ">
+      </button>
+      <div class="faq-search">
+        <input type="text" placeholder="Tìm trong FAQ..." id="faq-search-input">
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-container">
+    <!-- Phần chat hiện tại của anh -->
+    <div id="chat-messages"></div>
+    
+    <!-- FAQ Panel -->
+    <div class="faq-sidebar" id="faq-sidebar">
+      <div class="faq-categories" id="faq-categories"></div>
+      <div class="faq-questions" id="faq-questions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Thêm loader -->
+<div class="faq-loader" id="faq-loader">
+  <div class="loader"></div>
+</div>

@@ -1,219 +1,161 @@
-export class FAQRenderer {
-    constructor(containerId) {
-      this.container = document.getElementById(containerId);
-      this.answerContainer = document.getElementById('faq-answer');
+import { 
+    getCategories,
+    getQuestions,
+    getQuestionDetail,
+    search 
+  } from '../../config/faq.js';
+  
+  export class FAQRenderer {
+    constructor(platform) {
+      this.platform = platform;
+      this.container = document.getElementById('faq-container');
       this.init();
     }
   
     async init() {
-      await this.loadFAQs();
+      await this.loadConfig();
+      this.renderBaseUI();
       this.setupEventListeners();
     }
   
-    async loadFAQs() {
-      try {
-        const response = await fetch('/api/faq');
-        if (!response.ok) throw new Error('Failed to load FAQs');
-        
-        const { data } = await response.json();
-        this.renderCategories(data);
-      } catch (error) {
-        console.error('Error loading FAQs:', error);
-        this.showError();
-      }
+    async loadConfig() {
+      const response = await fetch(`/config/${this.platform}.json`);
+      this.config = await response.json();
     }
   
-    renderCategories(categories) {
+    renderBaseUI() {
       this.container.innerHTML = `
         <div class="faq-header">
-          <h2>📚 Câu hỏi thường gặp</h2>
-        </div>
-        ${categories.map(category => `
-          <div class="faq-category">
-            <h3>${category.title}</h3>
-            <ul class="faq-list">
-              ${category.questions.map(question => `
-                <li class="faq-item" data-id="${question.id}">
-                  ${question.question}
-                </li>
-              `).join('')}
-            </ul>
+          <h2>${this.config.faqTitle}</h2>
+          <div class="search-box">
+            <input type="text" id="faq-search" placeholder="${this.config.searchPlaceholder}">
           </div>
-        `).join('')}
+        </div>
+        <div class="faq-content">
+          <div id="faq-categories" class="categories-list"></div>
+          <div id="faq-questions" class="questions-list"></div>
+          <div id="faq-detail" class="question-detail"></div>
+        </div>
       `;
     }
   
     setupEventListeners() {
-      this.container.addEventListener('click', async (e) => {
-        if (e.target.classList.contains('faq-item')) {
-          const questionId = e.target.dataset.id;
-          await this.loadAnswer(questionId);
-        }
-      });
-    }
+      // Search handler
+      document.getElementById('faq-search').addEventListener('input', (e) => 
+        this.handleSearch(e.target.value)
+      );
   
-    async loadAnswer(questionId) {
-      try {
-        const response = await fetch(`/api/faq/${questionId}`);
-        if (!response.ok) throw new Error('Failed to load answer');
-        
-        const { data } = await response.json();
-        this.showAnswer(data);
-      } catch (error) {
-        console.error('Error loading answer:', error);
-        this.showAnswerError();
+      // Platform-specific event handlers
+      if(this.platform === 'facebook') {
+        this.setupFacebookEvents();
       }
+      // Thêm handlers cho các platform khác
     }
   
-    showAnswer(data) {
-      this.answerContainer.innerHTML = `
-        <div class="faq-answer-card">
-          <h4>${data.question}</h4>
-          <div class="faq-answer-content">${data.answer}</div>
-        </div>
-      `;
-      this.answerContainer.classList.add('show');
-    }
-  
-    showError() {
-      this.container.innerHTML = `
-        <div class="faq-error">
-          <p>Không thể tải danh sách câu hỏi</p>
-          <button onclick="location.reload()">Thử lại</button>
-        </div>
-      `;
-    }
-  
-    showAnswerError() {
-      this.answerContainer.innerHTML = `
-        <div class="faq-error">
-          <p>Không thể tải câu trả lời</p>
-        </div>
-      `;
-      this.answerContainer.classList.add('show');
-    }
-  }
-  import { getCategories, getQuestions, search } from '../../config/faq.js';
-
-export class FAQRenderer {
-  constructor() {
-    this.categoriesContainer = document.getElementById('faq-categories');
-    this.questionsContainer = document.getElementById('faq-questions');
-    this.searchInput = document.getElementById('faq-search-input');
-    this.loader = document.getElementById('faq-loader');
-
-    this.initEventListeners();
-    this.loadInitialFAQs();
-  }
-
-  initEventListeners() {
-    this.searchInput.addEventListener('input', this.handleSearch.bind(this));
-  }
-
-  async loadInitialFAQs() {
-    this.showLoader();
-    try {
-      const categories = await getCategories();
-      this.renderCategories(categories);
-    } catch (error) {
-      console.error('FAQ Load Error:', error);
-    } finally {
-      this.hideLoader();
-    }
-  }
-
-  renderCategories(categories) {
-    this.categoriesContainer.innerHTML = categories.map(cat => `
-      <div class="faq-category" data-id="${cat.id}">
-        <h3>${cat.title}</h3>
-        <span>${cat.questionCount} câu hỏi</span>
-      </div>
-    `).join('');
-
-    // Add click handlers
-    document.querySelectorAll('.faq-category').forEach(category => {
-      category.addEventListener('click', async (e) => {
-        const categoryId = e.currentTarget.dataset.id;
-        this.showCategoryQuestions(categoryId);
-      });
-    });
-  }
-
-  async showCategoryQuestions(categoryId) {
-    this.showLoader();
-    try {
-      const questions = await getQuestions(categoryId);
-      this.renderQuestions(questions);
-    } catch (error) {
-      console.error('Category Load Error:', error);
-    } finally {
-      this.hideLoader();
-    }
-  }
-
-  renderQuestions(questions) {
-    this.questionsContainer.innerHTML = questions.map(q => `
-      <div class="faq-question" data-id="${q.id}">
-        <div class="question-text">${q.question}</div>
-        <div class="question-meta">Cập nhật: ${q.lastUpdated}</div>
-      </div>
-    `).join('');
-
-    // Add question click handlers
-    document.querySelectorAll('.faq-question').forEach(question => {
-      question.addEventListener('click', async (e) => {
-        const questionId = e.currentTarget.dataset.id;
-        this.showQuestionDetail(questionId);
-      });
-    });
-  }
-
-  async handleSearch(e) {
-    const query = e.target.value.trim();
-    if (query.length > 2) {
-      this.showLoader();
-      try {
+    async handleSearch(query) {
+      if (query.length > 2) {
         const results = await search(query);
         this.renderSearchResults(results);
-      } catch (error) {
-        console.error('Search Error:', error);
-      } finally {
-        this.hideLoader();
       }
     }
-  }
-
-  // ... Các phương thức khác
-}
-
-// Khởi tạo khi DOM ready
-document.addEventListener('DOMContentLoaded', () => {
-  window.faqRenderer = new FAQRenderer();
-});
-export class FAQRenderer {
-    constructor() {
-      this.baseTemplate = this.loadBaseTemplate();
+  
+    async renderCategories() {
+      const categories = await getCategories();
+      document.getElementById('faq-categories').innerHTML = categories
+        .map(cat => `
+          <div class="category-item" data-id="${cat.id}">
+            <h3>${cat.title}</h3>
+            <p>${cat.questionCount} ${this.config.questionsText}</p>
+          </div>
+        `).join('');
+      
+      this.addCategoryHandlers();
     }
   
-    loadBaseTemplate() {
+    addCategoryHandlers() {
+      document.querySelectorAll('.category-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const questions = await getQuestions(item.dataset.id);
+          this.renderQuestions(questions);
+        });
+      });
+    }
+  
+    renderQuestions(questions) {
+      document.getElementById('faq-questions').innerHTML = questions
+        .map(q => `
+          <div class="question-item" data-id="${q.id}">
+            <div class="question-text">${q.question}</div>
+            <div class="question-meta">
+              <span>${this.config.lastUpdated}: ${q.lastUpdated}</span>
+            </div>
+          </div>
+        `).join('');
+      
+      this.addQuestionHandlers();
+    }
+  
+    addQuestionHandlers() {
+      document.querySelectorAll('.question-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const detail = await getQuestionDetail(item.dataset.id);
+          this.renderQuestionDetail(detail);
+        });
+      });
+    }
+  
+    renderQuestionDetail(detail) {
+      document.getElementById('faq-detail').innerHTML = `
+        <div class="detail-card">
+          <button class="back-btn">${this.config.backButtonText}</button>
+          <h3>${detail.question}</h3>
+          <div class="answer-content">${detail.answer}</div>
+          ${this.renderRelatedQuestions(detail.related)}
+        </div>
+      `;
+  
+      this.addBackButtonHandler();
+    }
+  
+    renderRelatedQuestions(related) {
+      if (!related.length) return '';
       return `
-        <div class="chat-container">
-          ${/* Template chung */''}
+        <div class="related-questions">
+          <h4>${this.config.relatedQuestionsText}</h4>
+          ${related.map(id => `
+            <div class="related-item" data-id="${id}">
+              ${this.getQuestionTextById(id)}
+            </div>
+          `).join('')}
         </div>
       `;
     }
   
-    renderFacebookUI() {
-      // Platform-specific template
-      document.getElementById('chat-root').innerHTML = `
-        ${this.baseTemplate}
-        <div class="fb-custom-elements">
-          ${/* Thêm các element đặc thù của Facebook */''}
-        </div>
-      `;
+    setupFacebookEvents() {
+      // Facebook-specific event handlers
+      window.FB.Event.subscribe('message', (event) => {
+        this.handleFBMessage(event);
+      });
     }
   
-    renderZaloUI() {
-      // Template riêng cho Zalo
+    handleFBMessage(event) {
+      // Xử lý tin nhắn từ Facebook
+      this.logInteraction({
+        type: 'facebook_message',
+        data: event
+      });
+    }
+  
+    logInteraction(data) {
+      // Gửi analytics đến Google Sheets
+      fetch('/api/analytics', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ...data,
+          platform: this.platform,
+          timestamp: new Date().toISOString()
+        })
+      });
     }
   }

@@ -34,3 +34,4 @@ npm install
 └── README.md
 đọc kỹ chính sách và quyền riêng tư ,  hãy liên hệ với sđt và email được ghi trong Điền Khoản (Terms)
 bản cập nhật mới nhất sẽ được update theo quy trình 
+Chúc các bạn vui vẻ

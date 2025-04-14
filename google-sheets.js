@@ -1,29 +1,28 @@
-// google-sheets.js - Phiên bản ESM hoàn chỉnh
+// google-sheets.js - Phiên bản ESM dùng config.js
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import logger from '../utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { SHEET_ID, serviceAccount } from '../config.js';
 
-// Khởi tạo __dirname trong ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class GoogleSheets {
   constructor() {
-    this.doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID);
+    this.doc = new GoogleSpreadsheet(SHEET_ID);
     this.initialized = false;
   }
 
   async init() {
     if (this.initialized) return;
-    
+
     try {
-      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
       await this.doc.useServiceAccountAuth({
-        client_email: credentials.client_email,
-        private_key: credentials.private_key
+        client_email: serviceAccount.client_email,
+        private_key: serviceAccount.private_key
       });
-      
+
       await this.doc.loadInfo();
       this.initialized = true;
       logger.info('Google Sheets initialized successfully');
@@ -40,12 +39,12 @@ class GoogleSheets {
     try {
       await this.init();
       const sheet = this.doc.sheetsByIndex[0];
-      
+
       const rowData = {
         'Timestamp': new Date().toISOString(),
         'Platform': data.platform || 'N/A',
         'User ID': data.userId || 'N/A',
-        'Message': data.message?.substring(0, 100) || 'N/A', // Giới hạn độ dài
+        'Message': data.message?.substring(0, 100) || 'N/A',
         'Action': data.action || 'N/A',
         'Status': data.status || 'processed',
         'Metadata': JSON.stringify({
@@ -55,12 +54,12 @@ class GoogleSheets {
       };
 
       await sheet.addRow(rowData);
-      
+
       logger.info(`Logged to Google Sheets: ${data.platform}`, {
         userId: data.userId,
         action: data.action
       });
-      
+
       return { success: true, rowData };
     } catch (error) {
       logger.error('Google Sheets logging failed', {
@@ -71,9 +70,9 @@ class GoogleSheets {
           userId: data.userId
         }
       });
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: error.message,
         code: 'GSHEETS_ERROR'
       };
@@ -94,7 +93,7 @@ class GoogleSheets {
       await this.init();
       const sheet = this.doc.sheetsByIndex[0];
       const rows = await sheet.getRows({ limit });
-      
+
       return rows.map(row => ({
         timestamp: row.Timestamp,
         platform: row.Platform,
@@ -108,10 +107,8 @@ class GoogleSheets {
   }
 }
 
-// Singleton pattern
 const googleSheets = new GoogleSheets();
 
-// Khởi tạo ngay khi load module
 (async () => {
   try {
     if (process.env.NODE_ENV === 'production') {

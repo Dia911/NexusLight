@@ -1,40 +1,87 @@
-// utils/logger.js - Phiên bản ESM hoàn chỉnh
-import { createWriteStream, existsSync, mkdirSync } from 'fs';
+// utils/logger.js
+import { createWriteStream, promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 import { inspect } from 'util';
 import os from 'os';
+import { format } from 'date-fns';
 
-// Cập nhật lại đường dẫn __dirname cho môi trường ESM
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 class NexusLogger {
   constructor(config = {}) {
-    // Cấu hình mặc định cho logger
     this.config = {
-      logDir: join(__dirname, '..', '..', 'logs'),  // Đảm bảo đường dẫn đúng
-      logFile: 'nexus.log',
-      errorFile: 'nexus-error.log',
+      logDir: join(__dirname, '../../logs'),
+      logFilePrefix: 'nexus',
       maxFileSize: 10 * 1024 * 1024, // 10MB
       maxFiles: 5,
-      consoleLevel: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      logLevels: ['error', 'warn', 'info', 'debug'],
       ...config
     };
 
-    // Khởi tạo hệ thống log
-    this._ensureLogDirExists();
+    this.currentDate = format(new Date(), 'yyyy-MM-dd');
+    this._initialize();
+  }
+
+  async _initialize() {
+    await this._ensureLogDir();
     this._createLogStreams();
-    this._initColors();
+    this._setupCleanup();
   }
 
-  // Các phương thức log
-  info(message, data) {
-    this._log('info', message, data);
+  async _ensureLogDir() {
+    try {
+      await fs.mkdir(this.config.logDir, { recursive: true });
+    } catch (error) {
+      console.error('Failed to create log directory:', error);
+    }
   }
 
-  warn(message, data) {
-    this._log('warn', message, data);
+  _createLogStreams() {
+    const basePath = join(this.config.logDir, this.config.logFilePrefix);
+    
+    this.streams = {
+      info: this._createStream(`${basePath}-info-${this.currentDate}.log`),
+      error: this._createStream(`${basePath}-error-${this.currentDate}.log`),
+      debug: this._createStream(`${basePath}-debug-${this.currentDate}.log`)
+    };
+  }
+
+  _createStream(filePath) {
+    return createWriteStream(filePath, { 
+      flags: 'a',
+      encoding: 'utf8'
+    });
+  }
+
+  _setupCleanup() {
+    process.on('beforeExit', () => this.close());
+    setInterval(() => this._rotateLogs(), 86400000); // Daily rotation
+  }
+
+  async _rotateLogs() {
+    if (format(new Date(), 'yyyy-MM-dd') !== this.currentDate) {
+      await this.close();
+      this.currentDate = format(new Date(), 'yyyy-MM-dd');
+      this._createLogStreams();
+    }
+  }
+
+  // ========== Public API ==========
+  log(level, message, data) {
+    if (!this.config.logLevels.includes(level)) return;
+
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level: level.toUpperCase(),
+      pid: process.pid,
+      message,
+      ...this._parseData(data)
+    };
+
+    this._writeLog(level, entry);
+    this._consoleLog(level, entry);
   }
 
   error(message, error) {
@@ -43,143 +90,85 @@ class NexusLogger {
       .digest('hex')
       .substring(0, 8);
 
-    this._log('error', message, {
-      errorId,
-      ...this._parseError(error)
+    this.log('error', message, {
+      error: this._parseError(error),
+      errorId
     });
 
     return errorId;
   }
 
+  warn(message, data) {
+    this.log('warn', message, data);
+  }
+
+  info(message, data) {
+    this.log('info', message, data);
+  }
+
   debug(message, data) {
-    if (this.config.consoleLevel === 'debug') {
-      this._log('debug', message, data);
-    }
+    this.log('debug', message, data);
   }
 
-  // Phương thức nội bộ
-  async _log(level, message, data) {
-    const entry = this._createLogEntry(level, message, data);
-
-    await this._writeToFile(entry);
-
-    if (this._shouldLogToConsole(level)) {
-      this._logToConsole(entry);
-    }
-  }
-
-  _createLogEntry(level, message, data) {
-    return {
-      timestamp: new Date().toISOString(),
-      level: level.toUpperCase(),
-      pid: process.pid,
-      hostname: os.hostname(),
-      message,
-      data: this._sanitizeData(data)
-    };
-  }
-
-  _sanitizeData(data) {
-    if (!data) return undefined;
-    if (data instanceof Error) return this._parseError(data);
-    if (typeof data === 'object') {
-      return JSON.parse(JSON.stringify(data, (_, value) => {
-        if (value instanceof Error) return this._parseError(value);
-        if (typeof value === 'bigint') return value.toString();
-        return value;
-      }));
-    }
-    return data;
+  // ========== Utility Methods ==========
+  _parseData(data) {
+    if (!data) return {};
+    if (data instanceof Error) return { error: this._parseError(data) };
+    if (typeof data === 'object') return { data: this._sanitizeObject(data) };
+    return { data };
   }
 
   _parseError(error) {
     return {
-      errorType: error?.constructor?.name || 'Error',
+      type: error?.constructor?.name || 'Error',
       message: error?.message || String(error),
       stack: error?.stack?.split('\n'),
-      ...(error?.code && { code: error.code }),
-      ...(error?.response && { response: error.response?.data })
+      ...(error?.code && { code: error.code })
     };
   }
 
-  async _writeToFile(entry) {
-    const logString = JSON.stringify(entry) + os.EOL;
-
-    await new Promise((resolve) => {
-      this.mainLogStream.write(logString, () => {
-        if (entry.level === 'ERROR') {
-          this.errorLogStream.write(logString, resolve);
-        } else {
-          resolve();
-        }
-      });
-    });
+  _sanitizeObject(obj) {
+    return JSON.parse(JSON.stringify(obj, (_, value) => {
+      if (value instanceof Error) return this._parseError(value);
+      if (typeof value === 'bigint') return value.toString();
+      return value;
+    }));
   }
 
-  _logToConsole(entry) {
-    const color = this.colors[entry.level.toLowerCase()] || this.colors.reset;
-    console.log(
-      `${color}[${entry.timestamp}] [${entry.level}]${this.colors.reset} ${entry.message}` +
-      (entry.data ? `\n${inspect(entry.data, { colors: true, depth: 5 })}` : '')
-    );
+  _writeLog(level, entry) {
+    const stream = this.streams[level] || this.streams.info;
+    stream.write(JSON.stringify(entry) + os.EOL);
   }
 
-  // Quản lý file log
-  _ensureLogDirExists() {
-    if (!existsSync(this.config.logDir)) {
-      mkdirSync(this.config.logDir, { recursive: true });
-    }
-  }
-
-  _createLogStreams() {
-    this.mainLogStream = createWriteStream(
-      join(this.config.logDir, this.config.logFile),
-      { flags: 'a' }
-    );
-
-    this.errorLogStream = createWriteStream(
-      join(this.config.logDir, this.config.errorFile),
-      { flags: 'a' }
-    );
-
-    this.mainLogStream.on('error', (err) =>
-      console.error('Main log stream error:', err)
-    );
-    this.errorLogStream.on('error', (err) =>
-      console.error('Error log stream error:', err)
-    );
-  }
-
-  _initColors() {
-    this.colors = {
-      info: '\x1b[36m', // Cyan
-      warn: '\x1b[33m', // Yellow
+  _consoleLog(level, entry) {
+    const colors = {
       error: '\x1b[31m', // Red
-      debug: '\x1b[35m', // Magenta
-      reset: '\x1b[0m'
+      warn: '\x1b[33m', // Yellow
+      info: '\x1b[36m', // Cyan
+      debug: '\x1b[35m' // Magenta
     };
+
+    console[level](
+      `${colors[level] || ''}[${entry.timestamp}] [${entry.level}] ${entry.message}`,
+      inspect(entry.data || entry.error, { colors: true, depth: 5 })
+    );
   }
 
-  // Kiểm tra điều kiện log console
-  _shouldLogToConsole(level) {
-    const levels = ['error', 'warn', 'info', 'debug'];
-    return levels.indexOf(level) <= levels.indexOf(this.config.consoleLevel);
-  }
-
-  // Đóng stream khi kết thúc
   async close() {
-    return Promise.all([
-      new Promise((resolve) => this.mainLogStream.end(resolve)),
-      new Promise((resolve) => this.errorLogStream.end(resolve))
-    ]);
+    await Promise.all(
+      Object.values(this.streams).map(stream => 
+        new Promise(resolve => stream.end(resolve))
+      )
+    );
   }
 }
 
-// Khởi tạo instance và export
-const logger = new NexusLogger();
-
-process.on('beforeExit', async () => {
-  await logger.close();
+// Singleton instance
+export const logger = new NexusLogger({
+  logLevels: process.env.NODE_ENV === 'production' 
+    ? ['error', 'warn', 'info'] 
+    : ['error', 'warn', 'info', 'debug']
 });
 
-export default logger;
+// Utility exports
+export const createLogger = (config) => new NexusLogger(config);

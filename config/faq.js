@@ -1,25 +1,22 @@
 // config/faq.js
-export const faqModule = {
+const faqModule = {
   metadata: {
     version: "2.3.0",
     lastUpdated: "2024-04-15",
-    totalQuestions: 0, // Sẽ được tính tự động
+    totalQuestions: 0
   },
 
-  // ================= CORE DATA =================
   config: {
     brand: {
       name: "OpenLive/Monbase",
       defaultGreeting: "Chào anh/chị, em là NexusOne - trợ lý của {brand}. Rất vui được hỗ trợ anh/chị!"
     },
-    
     platforms: {
       facebook: "https://www.facebook.com/profile.php?id=61573597316758",
       zalo: "https://zalo.me/g/knzata264",
       registration: "https://bcc.monbase.com/sign-up?ref=4b396e3c20b39ee0728ca6ed101e9498",
       phone: "0913831686"
     },
-
     aiIntegration: {
       chatGPT: {
         promptURL: "https://chat.openai.com/?prompt={userQuestion}",
@@ -28,7 +25,6 @@ export const faqModule = {
     }
   },
 
-  // ================= FAQ STRUCTURE =================
   structure: [
     {
       id: "general",
@@ -74,7 +70,6 @@ export const faqModule = {
     }
   ],
 
-  // ================= CORE METHODS =================
   getCategories(platform = 'default') {
     this._updateMetadata();
     return this.structure.map(category => ({
@@ -88,7 +83,7 @@ export const faqModule = {
   getQuestions(categoryId, platform = 'default', skip = 0, limit = 50) {
     const category = this.structure.find(c => c.id === categoryId);
     if (!category) throw new Error("Category not found");
-    
+
     return category.questions
       .slice(skip, skip + limit)
       .map(q => ({
@@ -110,18 +105,18 @@ export const faqModule = {
     this.structure.forEach(category => {
       category.questions.forEach(question => {
         let score = 0;
-        
-        if (searchFields.includes('question') && 
+
+        if (searchFields.includes('question') &&
             question.question.toLowerCase().includes(cleanQuery)) {
           score += 0.4;
         }
-        
-        if (searchFields.includes('answer') && 
+
+        if (searchFields.includes('answer') &&
             question.answer.toLowerCase().includes(cleanQuery)) {
           score += 0.3;
         }
-        
-        if (searchFields.includes('keywords') && 
+
+        if (searchFields.includes('keywords') &&
             question.keywords.some(kw => kw.toLowerCase() === cleanQuery)) {
           score += 0.3;
         }
@@ -146,7 +141,7 @@ export const faqModule = {
     for (const category of this.structure) {
       const question = category.questions.find(q => q.id === questionId);
       if (question) {
-        question.popularity++; // Update popularity
+        question.popularity++;
         return {
           ...question,
           category: {
@@ -160,7 +155,6 @@ export const faqModule = {
     throw new Error("Question not found");
   },
 
-  // ================= PRIVATE METHODS =================
   _updateMetadata() {
     this.metadata.totalQuestions = this.structure.reduce(
       (acc, curr) => acc + curr.questions.length, 0
@@ -175,7 +169,6 @@ export const faqModule = {
     };
   },
 
-  // ================= ANALYTICS INTEGRATION =================
   analytics: {
     googleSheetID: "YOUR_SHEET_ID",
     trackInteraction(interactionData) {
@@ -184,5 +177,7 @@ export const faqModule = {
   }
 };
 
-// Khởi tạo metadata ban đầu
 faqModule._updateMetadata();
+
+// ✅ Export default để dùng được với `import faqModule from './faq.js'`
+export default faqModule;
